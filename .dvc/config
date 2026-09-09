@@ -1,0 +1,4 @@
+[core]
+    remote = dvcremote_1
+['remote "dvcremote_1"']
+    url = D:\MLOPS\DVC_Data_CI_Full

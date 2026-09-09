@@ -8,13 +8,26 @@ import pandas as pd
 import mlflow
 import mlflow.sklearn
 import dagshub
+import yaml
 
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
 
 
 # MLflow + DagsHub
-mlflow.set_tracking_uri("https://dagshub.com/pranay-majumder/ml-project-using-mlops4.mlflow")
-dagshub.init(repo_owner="pranay-majumder", repo_name="ml-project-using-mlops4", mlflow=True)
+# Set up DagsHub credentials for MLflow tracking
+dagshub_token = os.getenv("DAGSHUB_TOKEN")
+if not dagshub_token:
+    raise EnvironmentError("DAGSHUB_TOKEN environment variable is not set")
+
+os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
+os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
+
+dagshub_url = "https://dagshub.com"
+repo_owner = "pranay-majumder"
+repo_name = "CI_Pipeline_full"
+
+# Set up MLflow tracking URI
+mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
 
 
 # Logging
@@ -32,6 +45,18 @@ file_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 
+
+def load_params(file_path):
+    try:
+        with open(file_path, "r") as file:
+            params = yaml.safe_load(file)
+
+        logger.debug("Parameters loaded from %s", file_path)
+        return params
+
+    except Exception as e:
+        logger.error("Error loading parameters: %s", e)
+        raise
 
 def load_model(file_path):
     try:
@@ -104,12 +129,19 @@ def save_model_info(run_id, model_id, model_path, file_path):
 
 def main():
     try:
-        mlflow.set_experiment("dvc-pipeline-mini-project")
+        experiment_name="CI_Pipeline"
+        mlflow.set_experiment(experiment_name)
 
-        # Bow_LOR_1 ---> Normal Experiment Run (test_size: 0.2, max_features: 5000)
-        # Bow_LOR_2 ---> Run Experiment and Register Model (version 1, @champion) ((test_size: 0.2, max_features: 5000))
-        # Bow_LOR_3 ---> Run Experiment and Register Model (version 2, @candidate) ((test_size: 0.2, max_features: 4000))
-        with mlflow.start_run(run_name="Bow_LOR_5") as run:
+        experiment = mlflow.get_experiment_by_name(experiment_name)
+
+        runs = mlflow.search_runs(
+            experiment_ids=[experiment.experiment_id]
+        )
+
+        next_number = len(runs) + 1
+
+        with mlflow.start_run(run_name=f"Bow_LOR_{next_number}") as run:
+            print("Run name:", mlflow.active_run().data.tags["mlflow.runName"])
 
             # Load model and Test Data
             model = load_model("./models/model.pkl")
@@ -120,13 +152,19 @@ def main():
             # Evaluate Model
             metrics = evaluate_model(model, X_test, y_test)
 
-            # Save Metrics
+            # Save Metrics in Local File
             save_metrics(metrics, "reports/metrics.json")
 
-            # Log Metrics and Parameters
+            # Log Metrics and Parameters in DagsHub (MLflow)
             mlflow.log_metrics(metrics)
-            # Log all Parameters
+
+            # Log all model Parameters in DagsHub (MLflow)
             mlflow.log_params(model.get_params())
+
+            # Log params.yaml parameters
+            params = load_params("params.yaml")
+            mlflow.log_params(params["data_ingestion"]["test_size"])
+            mlflow.log_params(params["data_ingestion"]["max_features"])
 
             # Log model
             # Later we need "model_id" for Load model from "Model Registory" of Mlflow.

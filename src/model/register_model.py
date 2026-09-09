@@ -5,10 +5,25 @@ import logging
 import mlflow
 import dagshub
 from mlflow.tracking import MlflowClient
+import os
 
 # MLflow + DagsHub
-mlflow.set_tracking_uri("https://dagshub.com/pranay-majumder/ml-project-using-mlops4.mlflow")
-dagshub.init(repo_owner="pranay-majumder", repo_name="ml-project-using-mlops4", mlflow=True)
+# MLflow + DagsHub
+# Set up DagsHub credentials for MLflow tracking
+dagshub_token = os.getenv("DAGSHUB_TOKEN")
+if not dagshub_token:
+    raise EnvironmentError("DAGSHUB_TOKEN environment variable is not set")
+
+os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
+os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
+
+dagshub_url = "https://dagshub.com"
+repo_owner = "pranay-majumder"
+repo_name = "CI_Pipeline_full"
+
+# Set up MLflow tracking URI
+mlflow.set_tracking_uri(f'{dagshub_url}/{repo_owner}/{repo_name}.mlflow')
+
 
 # Logging
 logger = logging.getLogger("model_registration")
@@ -57,9 +72,6 @@ def register_model(model_id, model_name):
 def main():
     try:
         model_info = load_model_info("reports/model_info.json")
-
-        # dvc-pipeline-mini-project (Experiment) ----> Bow_LOR_2 (Run 2) ---> model_id --> version 1 (@champion)
-        # dvc-pipeline-mini-project (Experiment) ----> Bow_LOR_3 (Run 3) ---> model_id --> version 2 (@candidate)
 
         run_id = model_info["run_id"]
         model_id = model_info["model_id"]
@@ -135,13 +147,6 @@ def main():
         client.set_model_version_tag(
             name=model_name,
             version=registered_version,
-            key="experiment",
-            value="Bow_LOR_3"
-        )
-
-        client.set_model_version_tag(
-            name=model_name,
-            version=registered_version,
             key="algorithm",
             value="LogisticRegression"
         )
@@ -154,28 +159,16 @@ def main():
         )
 
         # ====================================================
-        # Set Alias for Model Version
+        # Set Alias for Newly Updated Model Version
         # ====================================================
 
-        # Get the current champion version
-        current_champion = client.get_model_version_by_alias(
-            name=model_name,
-            alias="champion"
-        )
 
-        # Move old champion → candidate
-        client.set_registered_model_alias(
-            name=model_name,
-            alias="candidate",
-            version=current_champion.version
-        )
-
-        # Move new version → champion
         client.set_registered_model_alias(
             name=model_name,
             alias="champion",
             version=registered_version
         )
+
 
         # ====================================================
         # Final Information
