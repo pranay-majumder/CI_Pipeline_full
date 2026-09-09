@@ -163,8 +163,12 @@ def main():
 
             # Log params.yaml parameters
             params = load_params("params.yaml")
-            mlflow.log_params(params["data_ingestion"]["test_size"])
-            mlflow.log_params(params["data_ingestion"]["max_features"])
+
+            ## It should be in Dict format. So, we need to convert it into Dict format.
+            mlflow.log_params({
+                   "test_size": params["data_ingestion"]["test_size"],
+                   "max_features": params["feature_engineering"]["max_features"]
+                })
 
             # Log model
             # Later we need "model_id" for Load model from "Model Registory" of Mlflow.
