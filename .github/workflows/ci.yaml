@@ -32,3 +32,17 @@ jobs:
           DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
           dvc repro
+      
+      ## Always add the Test Step after "dvc repro" to ensure that the pipeline runs successfully before running tests.
+      - name: run FastAPI tests
+        env:
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          python -m unittest -v test.test_fastapi_app
+
+      ## Run Model Tests
+      - name: run Model tests
+        env:
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          python -m unittest -v test.test_model
